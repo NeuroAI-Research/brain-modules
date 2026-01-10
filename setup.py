@@ -5,7 +5,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="brain-modules",
-    version="0.0.4",
+    version="0.0.5",
     author="Ricky Ding",
     author_email="e0134117@u.nus.edu",
     description="Replicate brain modules' computations with Artificial Neural Networks",
