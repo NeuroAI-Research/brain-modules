@@ -24,4 +24,5 @@ Why?
 pip install brain-modules
 ```
 
-1. [Hippocampal Place Cells (2014 Nobel Prize)](./docs/hippocampus/1_PlaceCells.md)
+1. [Place Cells](./docs/hippocampus/1_PlaceCells.md) (incomplete, deprecated)
+2. [Brain's GPS System (Head Direction Cells, Grid Cells, Place Cells)](./docs/systems/1_BrainGPS.md)
