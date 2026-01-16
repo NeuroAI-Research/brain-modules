@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch as tc
 import torch.nn as nn
+import torch.nn.functional as F
 
 DEVICE = tc.device("cuda" if tc.cuda.is_available() else "cpu")
 
@@ -69,3 +70,23 @@ def make_path_2d(num=9, T=50, dt=0.2, plot=False):
             plt.scatter(out[i, :, 0], out[i, :, 1], s=5)
         plt.show()
     return inp, out
+
+
+class CharTokenizer:
+    def __init__(s, text):
+        chars = sorted(list(set(text)))
+        s.vocab_size = len(chars)
+        s.c2i = {c: i for i, c in enumerate(chars)}
+        s.i2c = {i: c for i, c in enumerate(chars)}
+
+    def encode(s, text):
+        return tc.tensor([s.c2i[c] for c in text]).long()
+
+    def decode(s, idxs: tc.Tensor):
+        return "".join([s.i2c[i] for i in to_np(idxs)])
+
+
+def cross_ent(logits: tc.Tensor, targets: tc.Tensor):
+    logits = logits.reshape(-1, logits.size(-1))
+    targets = targets.reshape(-1)
+    return F.cross_entropy(logits, targets)

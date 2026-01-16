@@ -50,18 +50,18 @@ class SwiGLU(nn.Module):
 
 class GPTConf:
     # GroupedQueryAttention
-    emb_dim = 2
+    emb_dim = 128
     n_head = 12
     n_kv_head = 3
-    head_dim = 6
+    head_dim = 128
     # SwiGLU
-    hid_dim = 7
+    hid_dim = 128
     # RoPE
-    max_T = 8
+    max_T = 64
     # Transformer
-    n_layer = 9
+    n_layer = 3
     # TextHead
-    vocab_size = 10
+    vocab_size: int
 
 
 class GroupedQueryAttention(nn.Module):
@@ -141,17 +141,40 @@ def init_weights(m: nn.Module, n_layer=1, std=0.02):
     if isinstance(m, nn.Linear):
         if hasattr(m, "is_residual"):
             std *= 1 / sqrt(2 * n_layer)
-        tc.nn.init.normal_(m.weight, mean=0.0, std=std)
+        nn.init.normal_(m.weight, mean=0.0, std=std)
         if m.bias is not None:
-            tc.nn.init.zeros_(m.bias)
+            nn.init.zeros_(m.bias)
     elif isinstance(m, nn.Embedding):
-        tc.nn.init.normal_(m.weight, mean=0.0, std=std)
+        nn.init.normal_(m.weight, mean=0.0, std=std)
 
 
 def test_GPT():
+    from brain_modules.utils import CharTokenizer, cross_ent
+
+    with open("test.md") as f:
+        text = f.read().replace("\n", ". ")
+    tok = CharTokenizer(text)
+    data = tok.encode(text)
+
     c = GPTConf()
+    c.vocab_size = tok.vocab_size
     emb = TextEmb(c)
     trans = Transformer(c)
-    x = tc.randint(0, c.vocab_size, (2, 3))
-    y = emb.out(trans(emb.emb(x)))
-    print(y.shape == (2, 3, c.vocab_size))
+    params = [*emb.parameters(), *trans.parameters()]
+    opt = tc.optim.AdamW(params, lr=1e-3, weight_decay=0.1)
+
+    for e in range(5000):
+        starts = tc.randint(len(data) - c.max_T, size=(32,))
+        d = tc.stack([data[i : i + c.max_T] for i in starts])
+        x, y = d[:, :-1], d[:, 1:]
+        logits = emb.out(trans(emb.emb(x)))
+        yp = tc.argmax(logits, dim=-1)
+        loss = cross_ent(logits, y)
+        opt.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(params, 1.0)
+        opt.step()
+        if e % 10 == 0:
+            print(
+                f"{e}\t loss: {loss.item():.4f}\t y: {tok.decode(y[0])}\t yp: {tok.decode(yp[0])}"
+            )
