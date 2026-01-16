@@ -32,7 +32,7 @@ class RoPE(nn.Module):
         # cis: (max_T, head_dim//2)
         B, T, H, D = x.shape
         z = tc.view_as_complex(x.float().view(B, T, H, D // 2, 2))
-        z *= s.cis[:T].view(1, T, 1, D // 2)
+        z *= s.cis[None, :T, None, :]
         return tc.view_as_real(z).view(*x.shape).type_as(x)
 
 
@@ -51,9 +51,9 @@ class SwiGLU(nn.Module):
 class GPTConf:
     # GroupedQueryAttention
     emb_dim = 128
-    n_head = 12
-    n_kv_head = 3
-    head_dim = 128
+    n_head = 4
+    n_kv_head = 2
+    head_dim = 32
     # SwiGLU
     hid_dim = 128
     # RoPE
@@ -112,7 +112,7 @@ class TransLayer(nn.Module):
         return x
 
 
-class Transformer(nn.Module):
+class GPT(nn.Module):
     def __init__(s, c: GPTConf):
         super().__init__()
         s.layers = nn.ModuleList([TransLayer(c) for _ in range(c.n_layer)])
@@ -148,7 +148,7 @@ def init_weights(m: nn.Module, n_layer=1, std=0.02):
         nn.init.normal_(m.weight, mean=0.0, std=std)
 
 
-def test_GPT():
+def test_GPT(GPTCls):
     from brain_modules.utils import CharTokenizer, cross_ent
 
     with open("test.md") as f:
@@ -159,15 +159,18 @@ def test_GPT():
     c = GPTConf()
     c.vocab_size = tok.vocab_size
     emb = TextEmb(c)
-    trans = Transformer(c)
-    params = [*emb.parameters(), *trans.parameters()]
+    gpt: GPT = GPTCls(c)
+    params = [*emb.parameters(), *gpt.parameters()]
     opt = tc.optim.AdamW(params, lr=1e-3, weight_decay=0.1)
 
-    for e in range(5000):
+    for e in range(1000):
         starts = tc.randint(len(data) - c.max_T, size=(32,))
         d = tc.stack([data[i : i + c.max_T] for i in starts])
         x, y = d[:, :-1], d[:, 1:]
-        logits = emb.out(trans(emb.emb(x)))
+        if isinstance(gpt, GPT):
+            logits = emb.out(gpt(emb.emb(x)))
+        else:
+            logits = gpt(x)
         yp = tc.argmax(logits, dim=-1)
         loss = cross_ent(logits, y)
         opt.zero_grad()
