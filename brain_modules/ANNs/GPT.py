@@ -56,6 +56,12 @@ class GPTConf:
     head_dim = 6
     # SwiGLU
     hid_dim = 7
+    # RoPE
+    max_T = 8
+    # Transformer
+    n_layer = 9
+    # TextHead
+    vocab_size = 10
 
 
 class GroupedQueryAttention(nn.Module):
@@ -67,7 +73,7 @@ class GroupedQueryAttention(nn.Module):
         s.q = nn.Linear(E, c.n_head * D, bias=False)
         s.k = nn.Linear(E, c.n_kv_head * D, bias=False)
         s.v = nn.Linear(E, c.n_kv_head * D, bias=False)
-        s.o = nn.Linear(c.n_head * D, E, bias=False)
+        s.out = nn.Linear(c.n_head * D, E, bias=False)
 
     def forward(s, x: tc.Tensor, rope: RoPE):
         # x: (B, T, emb_dim) -> (B, T, emb_dim)
@@ -85,11 +91,10 @@ class GroupedQueryAttention(nn.Module):
         mask = tc.tril(tc.ones(T, T))
         score = score.masked_fill(mask == 0, float("-inf"))
         attn = F.softmax(score, dim=-1)
-        out = (attn @ v).transpose(1, 2)
-        return s.o(out.reshape(B, T, -1))
+        return s.out((attn @ v).transpose(1, 2).reshape(B, T, -1))
 
 
-class TransBlock(nn.Module):
+class TransLayer(nn.Module):
     def __init__(s, c: GPTConf):
         super().__init__()
         s.norm1 = RMSNorm(c.emb_dim)
@@ -97,8 +102,56 @@ class TransBlock(nn.Module):
         s.norm2 = RMSNorm(c.emb_dim)
         s.ff = SwiGLU(c.emb_dim, c.hid_dim)
 
+        s.attn.out.is_residual = True
+        s.ff.out.is_residual = True
+
     def forward(s, x, rope):
         # x: (B, T, emb_dim) -> (B, T, emb_dim)
-        x += s.attn(s.norm1(x), rope)
-        x += s.ff(s.norm2(x))
+        x = x + s.attn(s.norm1(x), rope)
+        x = x + s.ff(s.norm2(x))
         return x
+
+
+class Transformer(nn.Module):
+    def __init__(s, c: GPTConf):
+        super().__init__()
+        s.layers = nn.ModuleList([TransLayer(c) for _ in range(c.n_layer)])
+        s.norm = RMSNorm(c.emb_dim)
+        s.rope = RoPE(c.max_T, c.head_dim)
+        for m in s.modules():
+            init_weights(m, c.n_layer)
+
+    def forward(s, x: tc.Tensor):
+        # x: (B, T, emb_dim) -> (B, T, emb_dim)
+        for l in s.layers:
+            x = l(x, s.rope)
+        return s.norm(x)
+
+
+class TextEmb(nn.Module):
+    def __init__(s, c: GPTConf):
+        super().__init__()
+        s.emb = nn.Embedding(c.vocab_size, c.emb_dim)
+        s.out = nn.Linear(c.emb_dim, c.vocab_size, bias=False)
+        s.emb.weight = s.out.weight
+        s.apply(init_weights)
+
+
+def init_weights(m: nn.Module, n_layer=1, std=0.02):
+    if isinstance(m, nn.Linear):
+        if hasattr(m, "is_residual"):
+            std *= 1 / sqrt(2 * n_layer)
+        tc.nn.init.normal_(m.weight, mean=0.0, std=std)
+        if m.bias is not None:
+            tc.nn.init.zeros_(m.bias)
+    elif isinstance(m, nn.Embedding):
+        tc.nn.init.normal_(m.weight, mean=0.0, std=std)
+
+
+def test_GPT():
+    c = GPTConf()
+    emb = TextEmb(c)
+    trans = Transformer(c)
+    x = tc.randint(0, c.vocab_size, (2, 3))
+    y = emb.out(trans(emb.emb(x)))
+    print(y.shape == (2, 3, c.vocab_size))
