@@ -163,7 +163,7 @@ def test_GPT(GPTCls):
     params = [*emb.parameters(), *gpt.parameters()]
     opt = tc.optim.AdamW(params, lr=1e-3, weight_decay=0.1)
 
-    for e in range(1000):
+    for e in range(5000):
         starts = tc.randint(len(data) - c.max_T, size=(32,))
         d = tc.stack([data[i : i + c.max_T] for i in starts])
         x, y = d[:, :-1], d[:, 1:]

@@ -12,9 +12,10 @@ class GRU(nn.Module):
         in_dim,
         out_dim,
         hid_dim=128,
+        n_layer=1,
     ):
         super().__init__()
-        s.rnn = nn.GRU(in_dim, hid_dim, batch_first=True)
+        s.rnn = nn.GRU(in_dim, hid_dim, n_layer, batch_first=True)
         s.fc = nn.Linear(hid_dim, out_dim)
 
     def forward(s, x):
