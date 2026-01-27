@@ -26,3 +26,9 @@ pip install brain-modules
 
 1. [Place Cells](./docs/hippocampus/1_PlaceCells.md) (incomplete, deprecated)
 2. [Brain's GPS System (Head Direction Cells, Grid Cells, Place Cells)](./docs/systems/1_BrainGPS.md)
+
+## List of `implemented` ANN modules
+
+1. [Transformer (RMSNorm, RoPE, SwiGLU, GroupedQueryAttention)](./brain_modules/ANNs/GPT.py)
+2. [GRU (Gated Recurrent Unit)](./brain_modules/ANNs/GRU.py)
+3. [SwiGLUMLP (Swish-Gated Linear Unit MLP)](./brain_modules/ANNs/MLP.py)
