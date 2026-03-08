@@ -1,7 +1,7 @@
 
 ## Intro
 
-[My](https://rickyding1997.github.io) approach to `brain simulation`
+My approach to `brain simulation`
 
 1. Identify a list of computational modules in the brain
 2. For each module
